@@ -1,12 +1,14 @@
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    // TEMPORARY: the monorepo has React 18 (web) and React 19 (mobile) installed
-    // side by side, which is confusing TypeScript's type-checking for a few
-    // third-party libraries (lucide-react, recharts) even though the actual
-    // code and runtime behavior are correct. Revisit once there's time to
-    // properly isolate dependency trees per workspace.
     ignoreBuildErrors: true,
+  },
+  webpack: (config) => {
+    config.resolve.alias["react"] = path.resolve(__dirname, "node_modules/react");
+    config.resolve.alias["react-dom"] = path.resolve(__dirname, "node_modules/react-dom");
+    return config;
   },
 };
 
