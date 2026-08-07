@@ -8,6 +8,8 @@ import StatusBadge from "../../../components/StatusBadge";
 import { formatDate } from "../../../lib/format";
 import { useAppData } from "../../../context/AppDataContext";
 
+export const dynamic = "force-dynamic";
+
 const STATUS_OPTIONS: { value: TransactionStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "in_escrow", label: "In Escrow" },

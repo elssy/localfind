@@ -12,6 +12,8 @@ import StatusBadge from "../../../components/StatusBadge";
 import { formatDate, formatRelativeTime } from "../../../lib/format";
 import { useAppData, type Resolution } from "../../../context/AppDataContext";
 
+export const dynamic = "force-dynamic";
+
 export default function DisputesPage() {
   const { disputes, providers, transactions, resolveDispute } = useAppData();
   const [activeDispute, setActiveDispute] = useState<Dispute | null>(null);

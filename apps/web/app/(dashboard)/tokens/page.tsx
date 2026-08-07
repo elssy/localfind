@@ -22,6 +22,8 @@ import { useAppData } from "../../../context/AppDataContext";
 import StatsCard from "../../../components/StatsCard";
 import { formatDate } from "../../../lib/format";
 
+export const dynamic = "force-dynamic";
+
 type Tab = "all" | "low-balance";
 
 export default function TokensPage() {

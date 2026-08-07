@@ -15,6 +15,8 @@ import StatusBadge from "../../../../components/StatusBadge";
 import { formatDate } from "../../../../lib/format";
 import { useAppData } from "../../../../context/AppDataContext";
 
+export const dynamic = "force-dynamic";
+
 export default function ProviderDetailPage({
   params,
 }: {

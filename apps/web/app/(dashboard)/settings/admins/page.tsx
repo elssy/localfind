@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { UserPlus, Clock, Ban, CheckCircle2, Trash2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 type Admin = { id: string; name: string; email: string; createdAt: string; disabled: boolean };
 type Invite = { id: string; email: string; createdAt: string; expiresAt: string };
 

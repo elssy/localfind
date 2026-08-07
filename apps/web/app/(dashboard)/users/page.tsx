@@ -3,6 +3,8 @@
 import { seekers, formatKES } from "@localfind/shared";
 import { useAppData } from "../../../context/AppDataContext";
 
+export const dynamic = "force-dynamic";
+
 // Mock "Joined" dates since the shared Seeker type has no joinedAt field.
 const MOCK_JOINED_DATES: Record<string, string> = {
   s1: "2024-03-10",

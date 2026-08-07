@@ -7,6 +7,8 @@ import { CATEGORIES, formatKES, type ProviderStatus } from "@localfind/shared";
 import StatusBadge from "../../../components/StatusBadge";
 import { useAppData } from "../../../context/AppDataContext";
 
+export const dynamic = "force-dynamic";
+
 const PAGE_SIZE = 10;
 
 const STATUS_OPTIONS: { value: ProviderStatus | "all"; label: string }[] = [

@@ -29,11 +29,18 @@ import StatsCard from "../../../components/StatsCard";
 import StatusBadge from "../../../components/StatusBadge";
 import { formatRelativeTime } from "../../../lib/format";
 import { useAppData } from "../../../context/AppDataContext";
+import type { Provider, Transaction, Dispute } from "@localfind/shared";
+
+export const dynamic = "force-dynamic";
 
 const PIE_COLORS = [COLORS.primaryBlue, COLORS.escrowPurple];
 
 export default function DashboardPage() {
-  const { providers, transactions, disputes } = useAppData();
+  const { providers, transactions, disputes } = useAppData() as {
+    providers: Provider[];
+    transactions: Transaction[];
+    disputes: Dispute[];
+  };
 
   const totalProviders = providers.length;
   // Assumption: "new this month" derived by counting providers joined within the last 30 days.
@@ -69,6 +76,7 @@ export default function DashboardPage() {
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     )
     .slice(0, 8);
+
 
   return (
     <div className="space-y-6">

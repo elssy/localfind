@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { ESCROW_FEE_RATE, ALERT_COST_PER_TOKEN_KES, CATEGORIES } from "@localfind/shared";
 
+export const dynamic = "force-dynamic";
+
 export default function SettingsPage() {
   const [escrowFeePercent, setEscrowFeePercent] = useState(
     ESCROW_FEE_RATE * 100
