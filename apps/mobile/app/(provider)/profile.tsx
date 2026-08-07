@@ -15,6 +15,13 @@ import { COLORS, formatKES } from "@localfind/shared";
 import type { Service } from "@localfind/shared";
 import { useAppStore } from "../../store/useAppStore";
 import Button from "../../components/Button";
+import { clearToken } from "../../lib/api";
+
+// Add inside the component, alongside your other handlers:
+const handleLogout = async () => {
+  await clearToken();
+  router.replace("/(auth)/login");
+};
 
 export default function ProviderProfile() {
   const provider = useAppStore((s) => s.currentProvider);
@@ -49,6 +56,8 @@ export default function ProviderProfile() {
   const addPhoto = () => {
     setPhotos((prev) => [...prev, `placeholder-${prev.length + 1}`]);
   };
+
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -155,6 +164,11 @@ export default function ProviderProfile() {
 
         <Pressable onPress={() => router.push(`/(shared)/provider-profile/${provider.id}`)} style={{ marginTop: 16 }}>
           <Text style={styles.previewLink}>Preview my public profile</Text>
+        </Pressable>
+        <Pressable onPress={handleLogout} style={{ alignSelf: "flex-end", marginBottom: 12 }}>
+          <Text style={{ color: COLORS.danger ?? "#DC2626", fontSize: 13, fontWeight: "600" }}>
+            Log out
+          </Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

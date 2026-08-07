@@ -6,76 +6,104 @@ import {
   StyleSheet,
   SafeAreaView,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@localfind/shared";
 import Button from "../../components/Button";
+import { apiRequest, saveToken } from "../../lib/api";
 
 export default function Login() {
   const params = useLocalSearchParams<{ role?: string }>();
   const role = params.role === "provider" ? "provider" : "seeker";
-  const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
 
-  const handleSendOtp = () => {
-    if (phone.trim().length < 9) return;
-    setStep("otp");
-  };
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleVerify = () => {
-    if (otp.trim().length < 4) return;
-    if (role === "provider") {
-      router.replace("/(provider)/dashboard");
-    } else {
-      router.replace("/(seeker)");
+  const handleLogin = async () => {
+    setError(null);
+
+    if (!email.trim() || !password) {
+      setError("Enter your email and password");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiRequest("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      await saveToken(data.token);
+
+      if (data.user.role === "provider") {
+        router.replace("/(provider)/dashboard");
+      } else {
+        router.replace("/(seeker)");
+      }
+    } catch (e: any) {
+      setError(e.message || "Login failed. Check your details and try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Pressable onPress={() => router.back()} style={styles.back}>
+      <Pressable
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+            style={styles.back}
+          >
         <Ionicons name="arrow-back" size={24} color={COLORS.darkText} />
       </Pressable>
 
       <Text style={styles.title}>
-        {role === "provider" ? "Provider Sign In" : "Welcome"}
+        {role === "provider" ? "Provider Sign In" : "Welcome back"}
       </Text>
-      <Text style={styles.subtitle}>
-        {step === "phone"
-          ? "Enter your phone number to continue"
-          : `Enter the 4-digit code sent to ${phone}`}
-      </Text>
+      <Text style={styles.subtitle}>Sign in with your email and password</Text>
 
-      {step === "phone" ? (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="+254 7XX XXX XXX"
-            placeholderTextColor={COLORS.mutedText}
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-          <Button title="Send Code" onPress={handleSendOtp} style={{ marginTop: 20 }} />
-        </>
+      {error && <Text style={styles.error}>{error}</Text>}
+
+      <Text style={styles.label}>Email</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="you@example.com"
+        placeholderTextColor={COLORS.mutedText}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={email}
+        onChangeText={setEmail}
+      />
+
+      <Text style={styles.label}>Password</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="••••••••"
+        placeholderTextColor={COLORS.mutedText}
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
+
+      <Pressable
+        onPress={() => router.push("/(auth)/forgot-password")}
+        style={{ marginTop: 8 }}
+      >
+        <Text style={styles.forgotLink}>Forgot password?</Text>
+      </Pressable>
+
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primaryBlue} />
       ) : (
-        <>
-          <TextInput
-            style={[styles.input, styles.otpInput]}
-            placeholder="0000"
-            placeholderTextColor={COLORS.mutedText}
-            keyboardType="number-pad"
-            maxLength={4}
-            value={otp}
-            onChangeText={setOtp}
-          />
-          <Button title="Verify & Continue" onPress={handleVerify} style={{ marginTop: 20 }} />
-        </>
+        <Button title="Sign In" onPress={handleLogin} style={{ marginTop: 20 }} />
       )}
 
-      <Pressable onPress={() => router.push("/(auth)/register")}>
+      <Pressable onPress={() => router.push({ pathname: "/(auth)/register", params: { role } })}>
         <Text style={styles.link}>New here? Create an account</Text>
       </Pressable>
     </SafeAreaView>
@@ -101,7 +129,19 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: COLORS.mutedText,
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  error: {
+    fontSize: 14,
+    color: "#DC2626",
+    marginBottom: 12,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.midText,
+    marginBottom: 6,
+    marginTop: 12,
   },
   input: {
     borderWidth: 1,
@@ -113,10 +153,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.darkText,
   },
-  otpInput: {
-    textAlign: "center",
-    fontSize: 24,
-    letterSpacing: 12,
+  forgotLink: {
+    fontSize: 13,
+    color: COLORS.primaryBlue,
+    fontWeight: "600",
   },
   link: {
     textAlign: "center",
