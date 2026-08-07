@@ -1,12 +1,14 @@
-import argon2 from "argon2";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
+const SALT_ROUNDS = 12;
+
 export function hashPassword(password: string) {
-  return argon2.hash(password, { type: argon2.argon2id });
+  return bcrypt.hash(password, SALT_ROUNDS);
 }
 
 export function verifyPassword(hash: string, password: string) {
-  return argon2.verify(hash, password);
+  return bcrypt.compare(password, hash);
 }
 
 // For opaque session/reset/verification tokens — we store only the hash,
