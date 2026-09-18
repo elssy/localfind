@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    // Same generic message either way — don't reveal which emails are registered.
     return NextResponse.json({ error: "Unable to create account" }, { status: 400 });
   }
 
@@ -53,7 +52,15 @@ export async function POST(req: NextRequest) {
   await logAuthEvent({ event: "register", email, userId: user.id, ipAddress: ip, success: true });
 
   return NextResponse.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified },
-    token: sessionToken, // mobile stores this; web already has the cookie set
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      emailVerified: user.emailVerified,
+      // A brand-new account never has a profile yet — no lookup needed.
+      hasProfile: false,
+    },
+    token: sessionToken,
   });
 }

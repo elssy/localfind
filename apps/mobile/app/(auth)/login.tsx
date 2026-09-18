@@ -41,9 +41,11 @@ export default function Login() {
       await saveToken(data.token);
 
       if (data.user.role === "provider") {
-        router.replace("/(provider)/dashboard");
+        router.replace(
+          data.user.hasProfile ? "/(provider)/dashboard" : "/(onboarding)/provider"
+        );
       } else {
-        router.replace("/(seeker)");
+        router.replace(data.user.hasProfile ? "/(seeker)" : "/(onboarding)/seeker");
       }
     } catch (e: any) {
       setError(e.message || "Login failed. Check your details and try again.");

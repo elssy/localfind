@@ -62,6 +62,11 @@ export default function LoginPage() {
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
+        <div className="mb-4 text-right">
+          <a href="/reset-password-request" className="text-sm text-blue-600 hover:underline">
+            Forgot password?
+          </a>
+        </div>
       </form>
     </div>
   );

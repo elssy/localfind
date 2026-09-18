@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@localfind/shared": "*",
@@ -31,6 +33,7 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "tsx": "^4.23.1",
-    "typescript": "^5.5.2"
+    "typescript": "^5.5.2",
+    "vitest": "^4.1.11"
   }
 }

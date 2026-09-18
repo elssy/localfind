@@ -5,6 +5,7 @@ import { verifyPassword } from "../../../../lib/auth/hash";
 import { createSession, setSessionCookie } from "../../../../lib/auth/session";
 import { loginLimiter } from "../../../../lib/auth/rateLimit";
 import { logAuthEvent } from "../../../../lib/auth/logger";
+import { getProfileStatus } from "../../../../lib/profile";
 
 const schema = z.object({
   email: z.string().email(),
@@ -20,8 +21,6 @@ export async function POST(req: NextRequest) {
   }
   const { email, password } = parsed.data;
 
-  // Rate limit on the IP+email combo so one bot can't lock out a real user,
-  // and a botnet can't distribute a brute force across many IPs unnoticed.
   const limitKey = `${ip}:${email}`;
   const { success } = await loginLimiter.limit(limitKey);
   if (!success) {
@@ -38,7 +37,7 @@ export async function POST(req: NextRequest) {
     return genericError();
   }
 
-  const valid = await verifyPassword(user.passwordHash, password);
+  const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
     await logAuthEvent({ event: "login", email, userId: user.id, ipAddress: ip, success: false });
     return genericError();
@@ -51,8 +50,17 @@ export async function POST(req: NextRequest) {
   await setSessionCookie(sessionToken);
   await logAuthEvent({ event: "login", email, userId: user.id, ipAddress: ip, success: true });
 
+  const { hasProfile } = await getProfileStatus(user.id, user.role);
+
   return NextResponse.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      emailVerified: user.emailVerified,
+      hasProfile,
+    },
     token: sessionToken,
   });
 }

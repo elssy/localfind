@@ -7,6 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────
+// Auth (unchanged from Phase 0)
+// ─────────────────────────────────────────────
+
 enum Role {
   seeker
   provider
@@ -21,41 +25,48 @@ model User {
   passwordHash  String
   role          Role      @default(seeker)
   emailVerified Boolean   @default(false)
+  disabled      Boolean   @default(false)
   createdAt     DateTime  @default(now())
 
-  sessions              Session[]
+  sessions                Session[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
+  sentAdminInvites        AdminInvite[]
+
+  // Phase 1 relations
+  providerProfile    Provider?
+  seekerProfile      Seeker?
+  jobsPosted         Job[]         @relation("SeekerJobs")
+  transactionsBought Transaction[] @relation("SeekerTransactions")
+  transactionsSold   Transaction[] @relation("ProviderTransactions")
+  disputesRaised     Dispute[]     @relation("DisputeRaisedBy")
+  messagesSent       Message[]     @relation("MessageSender")
+  messagesReceived   Message[]     @relation("MessageReceiver")
+  reviewsGiven       Review[]      @relation("ReviewAuthor")
 
   @@index([email])
-
-  sentAdminInvites AdminInvite[]
-
-  disabled     Boolean   @default(false)
-
-
 }
 
 model Session {
-  id         String   @id @default(cuid())
-  tokenHash  String   @unique
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
 
   @@index([userId])
   @@index([tokenHash])
 }
 
 model EmailVerificationToken {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
   expiresAt DateTime
   usedAt    DateTime?
 
@@ -63,15 +74,28 @@ model EmailVerificationToken {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
   expiresAt DateTime
   usedAt    DateTime?
 
   @@index([userId])
+}
+
+model AdminInvite {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  email       String
+  invitedById String
+  invitedBy   User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  usedAt      DateTime?
+
+  @@index([email])
 }
 
 model AuthLog {
@@ -88,15 +112,225 @@ model AuthLog {
   @@index([createdAt])
 }
 
-model AdminInvite {
-  id          String    @id @default(cuid())
-  tokenHash   String    @unique
-  email       String
-  invitedById String
-  invitedBy   User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  expiresAt   DateTime
-  usedAt      DateTime?
+// ─────────────────────────────────────────────
+// Phase 1: Core marketplace data model
+// ─────────────────────────────────────────────
 
-  @@index([email])
+enum VerificationStatus {
+  pending
+  verified
+  rejected
+}
+
+// One row per user with role = provider. Kept separate from User
+// (rather than adding these columns to User) so seeker-only accounts
+// never carry a pile of nullable business fields.
+model Provider {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName       String
+  category           String
+  bio                String?
+  city               String?
+  latitude           Float?
+  longitude          Float?
+  photoUrls          String[]           @default([])
+  verificationStatus VerificationStatus @default(pending)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  bids           Bid[]
+  reviews        Review[]       @relation("ReviewedProvider")
+  tokenBalance   TokenBalance?
+  tokenPurchases TokenPurchase[]
+
+  @@index([category])
+  @@index([city])
+}
+
+// Minimal for now — most seeker-specific data lives on Job itself.
+// Kept as its own table so it can grow (saved addresses, preferences)
+// without touching the auth-critical User model again.
+model Seeker {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city      String?
+  createdAt DateTime @default(now())
+}
+
+enum JobStatus {
+  open
+  awarded
+  completed
+  cancelled
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  seekerId    String
+  seeker      User      @relation("SeekerJobs", fields: [seekerId], references: [id], onDelete: Cascade)
+  category    String
+  description String
+  budgetMinKES Int?
+  budgetMaxKES Int?
+  city        String?
+  status      JobStatus @default(open)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  bids     Bid[]
+  messages Message[]
+
+  @@index([seekerId])
+  @@index([category])
+  @@index([status])
+}
+
+enum BidStatus {
+  pending
+  accepted
+  rejected
+  withdrawn
+}
+
+model Bid {
+  id         String    @id @default(cuid())
+  jobId      String
+  job        Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  providerId String
+  provider   Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  amountKES  Int
+  message    String?
+  status     BidStatus @default(pending)
+  createdAt  DateTime  @default(now())
+
+  transaction Transaction?
+
+  // A provider can only place one active bid per job — enforced at the
+  // database level so a race condition or client bug can't create duplicates.
+  @@unique([jobId, providerId])
+  @@index([providerId])
+}
+
+enum TransactionStatus {
+  pending
+  in_escrow
+  released
+  refunded
+  disputed
+}
+
+// The financial record of an accepted bid. Kept independent of Bid/Job
+// deletion (Restrict, not Cascade) — a job or bid should never be hard-
+// deleted once money has moved, for audit and dispute-resolution reasons.
+model Transaction {
+  id          String            @id @default(cuid())
+  bidId       String            @unique
+  bid         Bid               @relation(fields: [bidId], references: [id], onDelete: Restrict)
+  seekerId    String
+  seeker      User              @relation("SeekerTransactions", fields: [seekerId], references: [id], onDelete: Restrict)
+  providerId  String
+  provider    User              @relation("ProviderTransactions", fields: [providerId], references: [id], onDelete: Restrict)
+  amountKES   Int
+  feeKES      Int               @default(0)
+  status      TransactionStatus @default(pending)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  dispute Dispute?
+  review  Review?
+
+  @@index([seekerId])
+  @@index([providerId])
+  @@index([status])
+}
+
+enum DisputeStatus {
+  open
+  under_review
+  resolved
+}
+
+enum DisputeResolution {
+  release
+  refund
+  split
+}
+
+model Dispute {
+  id                String             @id @default(cuid())
+  transactionId     String             @unique
+  transaction       Transaction        @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  raisedById        String
+  raisedBy          User               @relation("DisputeRaisedBy", fields: [raisedById], references: [id], onDelete: Restrict)
+  reason            String
+  status            DisputeStatus      @default(open)
+  resolution        DisputeResolution?
+  splitPercent      Int?
+  resolvedAt        DateTime?
+  createdAt         DateTime           @default(now())
+
+  @@index([status])
+}
+
+model Message {
+  id         String    @id @default(cuid())
+  jobId      String
+  job        Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User      @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Supports the common query "all messages for this job, oldest first"
+  // without a full table scan.
+  @@index([jobId, createdAt])
+  @@index([receiverId, readAt])
+}
+
+model Review {
+  id            String      @id @default(cuid())
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  authorId      String
+  author        User        @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  providerId    String
+  provider      Provider    @relation("ReviewedProvider", fields: [providerId], references: [id], onDelete: Cascade)
+  rating        Int
+  comment       String?
+  createdAt     DateTime    @default(now())
+
+  @@index([providerId])
+}
+
+enum TokenPurchaseStatus {
+  pending
+  completed
+  failed
+}
+
+model TokenPurchase {
+  id             String              @id @default(cuid())
+  providerId     String
+  provider       Provider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  bundleName     String
+  tokensGranted  Int
+  amountPaidKES  Int
+  status         TokenPurchaseStatus @default(pending)
+  createdAt      DateTime            @default(now())
+
+  @@index([providerId])
+}
+
+model TokenBalance {
+  id         String   @id @default(cuid())
+  providerId String   @unique
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  balance    Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }
