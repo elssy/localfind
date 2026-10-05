@@ -1,16 +1,10 @@
 import React, { useState } from "react";
-import {
-  Text,
-  TextInput,
-  StyleSheet,
-  SafeAreaView,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Keyboard } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@localfind/shared";
 import Button from "../../components/Button";
+import FormScreen from "../../components/FormScreen";
 import { apiRequest } from "../../lib/api";
 
 export default function ForgotPassword() {
@@ -19,6 +13,7 @@ export default function ForgotPassword() {
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async () => {
+    Keyboard.dismiss();
     if (!email.trim()) return;
 
     setLoading(true);
@@ -28,9 +23,9 @@ export default function ForgotPassword() {
         body: JSON.stringify({ email: email.trim() }),
       });
     } catch {
-      // Deliberately ignored — the API always returns the same response
-      // whether or not the email exists, so there's nothing useful to
-      // show differently here even on failure.
+      // Deliberately ignored. The API always returns the same response
+      // whether or not the email exists, so there is nothing useful to
+      // show differently here, even on failure.
     } finally {
       setLoading(false);
       setSubmitted(true);
@@ -38,8 +33,14 @@ export default function ForgotPassword() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} style={styles.back} >
+    <FormScreen>
+      <Pressable
+        onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+        style={styles.back}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
         <Ionicons name="arrow-back" size={24} color={COLORS.darkText} />
       </Pressable>
 
@@ -48,7 +49,7 @@ export default function ForgotPassword() {
       {submitted ? (
         <>
           <Text style={styles.subtitle}>
-            If an account exists for {email.trim()}, we've sent a link to reset your
+            If an account exists for {email.trim()}, we have sent a link to reset your
             password. Open it from your phone's email app to continue.
           </Text>
           <Button
@@ -60,7 +61,7 @@ export default function ForgotPassword() {
       ) : (
         <>
           <Text style={styles.subtitle}>
-            Enter the email on your account and we'll send you a reset link.
+            Enter the email on your account and we will send you a reset link.
           </Text>
 
           <Text style={styles.label}>Email</Text>
@@ -73,48 +74,26 @@ export default function ForgotPassword() {
             autoCorrect={false}
             value={email}
             onChangeText={setEmail}
+            returnKeyType="send"
+            onSubmitEditing={handleSubmit}
           />
 
           {loading ? (
-            <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primaryBlue} />
+            <ActivityIndicator style={{ marginTop: 24 }} color={COLORS.primaryBlue} />
           ) : (
-            <Button title="Send Reset Link" onPress={handleSubmit} style={{ marginTop: 20 }} />
+            <Button title="Send Reset Link" onPress={handleSubmit} style={{ marginTop: 24 }} />
           )}
         </>
       )}
-    </SafeAreaView>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  back: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "600",
-    color: COLORS.darkText,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.mutedText,
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.midText,
-    marginBottom: 6,
-    marginTop: 12,
-  },
+  back: { alignSelf: "flex-start", marginBottom: 24 },
+  title: { fontSize: 26, fontWeight: "600", color: COLORS.darkText, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: COLORS.mutedText, marginBottom: 24, lineHeight: 20 },
+  label: { fontSize: 13, fontWeight: "600", color: COLORS.midText, marginBottom: 6, marginTop: 12 },
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,

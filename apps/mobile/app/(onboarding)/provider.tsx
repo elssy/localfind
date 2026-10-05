@@ -1,21 +1,18 @@
-import React, { useState } from "react";
-import {
-  Text,
-  TextInput,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import React, { useRef, useState } from "react";
+import { Text, TextInput, StyleSheet, ActivityIndicator, Keyboard } from "react-native";
 import { router } from "expo-router";
 import { COLORS, CATEGORIES } from "@localfind/shared";
 import Button from "../../components/Button";
+import FormScreen from "../../components/FormScreen";
 import SelectField from "../../components/SelectField";
 import { apiRequest } from "../../lib/api";
 
 const CATEGORY_NAMES = CATEGORIES.map((c) => c.name);
 
 export default function ProviderOnboarding() {
+  const cityRef = useRef<TextInput>(null);
+  const bioRef = useRef<TextInput>(null);
+
   const [businessName, setBusinessName] = useState("");
   const [category, setCategory] = useState("");
   const [bio, setBio] = useState("");
@@ -24,6 +21,7 @@ export default function ProviderOnboarding() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
+    Keyboard.dismiss();
     setError(null);
 
     if (!businessName.trim()) {
@@ -55,67 +53,70 @@ export default function ProviderOnboarding() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Set up your business profile</Text>
-        <Text style={styles.subtitle}>
-          Seekers will see this when they find you in a search.
-        </Text>
+    <FormScreen>
+      <Text style={styles.title}>Set up your business profile</Text>
+      <Text style={styles.subtitle}>Seekers will see this when they find you in a search.</Text>
 
-        {error && <Text style={styles.error}>{error}</Text>}
+      <Text style={styles.label}>Business name</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. Kariuki Auto Garage"
+        placeholderTextColor={COLORS.mutedText}
+        value={businessName}
+        onChangeText={setBusinessName}
+        returnKeyType="next"
+        onSubmitEditing={() => cityRef.current?.focus()}
+        blurOnSubmit={false}
+      />
 
-        <Text style={styles.label}>Business name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Kariuki Auto Garage"
-          placeholderTextColor={COLORS.mutedText}
-          value={businessName}
-          onChangeText={setBusinessName}
-        />
+      <SelectField
+        label="Category"
+        value={category}
+        options={CATEGORY_NAMES}
+        onChange={setCategory}
+        placeholder="Choose a category"
+      />
 
-        <SelectField
-          label="Category"
-          value={category}
-          options={CATEGORY_NAMES}
-          onChange={setCategory}
-          placeholder="Choose a category"
-        />
+      <Text style={styles.label}>City</Text>
+      <TextInput
+        ref={cityRef}
+        style={styles.input}
+        placeholder="e.g. Nairobi"
+        placeholderTextColor={COLORS.mutedText}
+        value={city}
+        onChangeText={setCity}
+        returnKeyType="next"
+        onSubmitEditing={() => bioRef.current?.focus()}
+        blurOnSubmit={false}
+      />
 
-        <Text style={styles.label}>City</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Nairobi"
-          placeholderTextColor={COLORS.mutedText}
-          value={city}
-          onChangeText={setCity}
-        />
+      <Text style={styles.label}>About your business (optional)</Text>
+      <TextInput
+        ref={bioRef}
+        style={[styles.input, styles.multiline]}
+        placeholder="Tell seekers what you do and why they should pick you"
+        placeholderTextColor={COLORS.mutedText}
+        value={bio}
+        onChangeText={setBio}
+        multiline
+        numberOfLines={4}
+      />
 
-        <Text style={styles.label}>About your business (optional)</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          placeholder="Tell seekers what you do and why they should pick you"
-          placeholderTextColor={COLORS.mutedText}
-          value={bio}
-          onChangeText={setBio}
-          multiline
-          numberOfLines={4}
-        />
+      {error && <Text style={styles.error}>{error}</Text>}
 
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 24 }} color={COLORS.primaryBlue} />
-        ) : (
-          <Button title="Finish Setup" onPress={handleSubmit} style={{ marginTop: 24 }} />
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 24 }} color={COLORS.primaryBlue} />
+      ) : (
+        <Button title="Finish Setup" onPress={handleSubmit} style={{ marginTop: 24 }} />
+      )}
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, paddingHorizontal: 24, paddingTop: 24 },
   title: { fontSize: 24, fontWeight: "600", color: COLORS.darkText, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.mutedText, marginBottom: 20, lineHeight: 20 },
-  error: { fontSize: 14, color: "#DC2626", marginBottom: 12 },
+  error: { fontSize: 14, color: "#DC2626", marginTop: 16, lineHeight: 20 },
   label: { fontSize: 13, fontWeight: "600", color: COLORS.midText, marginBottom: 6, marginTop: 14 },
   input: {
     borderWidth: 1,

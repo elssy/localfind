@@ -32,7 +32,15 @@ export async function POST(req: NextRequest) {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return NextResponse.json({ error: "Unable to create account" }, { status: 400 });
+    // The same wording is used for every failure in this branch, so it never confirms
+    // whether an email is registered. It still tells a real person what to try next.
+    return NextResponse.json(
+      {
+        error:
+          "We could not create this account. If this email is already registered, sign in or reset your password instead.",
+      },
+      { status: 400 }
+    );
   }
 
   const passwordHash = await hashPassword(password);
@@ -58,7 +66,7 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role,
       emailVerified: user.emailVerified,
-      // A brand-new account never has a profile yet — no lookup needed.
+      // A brand-new account never has a profile yet, so no lookup is needed.
       hasProfile: false,
     },
     token: sessionToken,

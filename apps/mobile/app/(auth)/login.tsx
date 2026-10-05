@@ -1,29 +1,31 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
-  View,
   Text,
   TextInput,
   StyleSheet,
-  SafeAreaView,
   Pressable,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@localfind/shared";
 import Button from "../../components/Button";
+import FormScreen from "../../components/FormScreen";
 import { apiRequest, saveToken } from "../../lib/api";
 
 export default function Login() {
   const params = useLocalSearchParams<{ role?: string }>();
   const role = params.role === "provider" ? "provider" : "seeker";
 
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    Keyboard.dismiss();
     setError(null);
 
     if (!email.trim() || !password) {
@@ -55,11 +57,14 @@ export default function Login() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <FormScreen>
       <Pressable
-            onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-            style={styles.back}
-          >
+        onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+        style={styles.back}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
         <Ionicons name="arrow-back" size={24} color={COLORS.darkText} />
       </Pressable>
 
@@ -67,8 +72,6 @@ export default function Login() {
         {role === "provider" ? "Provider Sign In" : "Welcome back"}
       </Text>
       <Text style={styles.subtitle}>Sign in with your email and password</Text>
-
-      {error && <Text style={styles.error}>{error}</Text>}
 
       <Text style={styles.label}>Email</Text>
       <TextInput
@@ -80,71 +83,56 @@ export default function Login() {
         autoCorrect={false}
         value={email}
         onChangeText={setEmail}
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        blurOnSubmit={false}
       />
 
       <Text style={styles.label}>Password</Text>
       <TextInput
+        ref={passwordRef}
         style={styles.input}
         placeholder="••••••••"
         placeholderTextColor={COLORS.mutedText}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
+        returnKeyType="go"
+        onSubmitEditing={handleLogin}
       />
 
       <Pressable
         onPress={() => router.push("/(auth)/forgot-password")}
-        style={{ marginTop: 8 }}
+        style={{ marginTop: 12 }}
+        hitSlop={8}
       >
         <Text style={styles.forgotLink}>Forgot password?</Text>
       </Pressable>
 
+      {error && <Text style={styles.error}>{error}</Text>}
+
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primaryBlue} />
+        <ActivityIndicator style={{ marginTop: 24 }} color={COLORS.primaryBlue} />
       ) : (
-        <Button title="Sign In" onPress={handleLogin} style={{ marginTop: 20 }} />
+        <Button title="Sign In" onPress={handleLogin} style={{ marginTop: 24 }} />
       )}
 
-      <Pressable onPress={() => router.push({ pathname: "/(auth)/register", params: { role } })}>
+      <Pressable
+        onPress={() => router.push({ pathname: "/(auth)/register", params: { role } })}
+        hitSlop={8}
+      >
         <Text style={styles.link}>New here? Create an account</Text>
       </Pressable>
-    </SafeAreaView>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  back: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "600",
-    color: COLORS.darkText,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.mutedText,
-    marginBottom: 16,
-  },
-  error: {
-    fontSize: 14,
-    color: "#DC2626",
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.midText,
-    marginBottom: 6,
-    marginTop: 12,
-  },
+  back: { alignSelf: "flex-start", marginBottom: 24 },
+  title: { fontSize: 26, fontWeight: "600", color: COLORS.darkText, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: COLORS.mutedText, marginBottom: 16 },
+  error: { fontSize: 14, color: "#DC2626", marginTop: 16 },
+  label: { fontSize: 13, fontWeight: "600", color: COLORS.midText, marginBottom: 6, marginTop: 12 },
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -155,15 +143,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.darkText,
   },
-  forgotLink: {
-    fontSize: 13,
-    color: COLORS.primaryBlue,
-    fontWeight: "600",
-  },
+  forgotLink: { fontSize: 13, color: COLORS.primaryBlue, fontWeight: "600" },
   link: {
     textAlign: "center",
     color: COLORS.primaryBlue,
-    marginTop: 24,
+    marginTop: 28,
     fontSize: 14,
     fontWeight: "600",
   },
