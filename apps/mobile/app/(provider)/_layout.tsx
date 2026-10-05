@@ -2,8 +2,24 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@localfind/shared";
+import { useLoadProfile } from "../../lib/useLoadProfile";
+import ProfileLoadStatus from "../../components/ProfileLoadStatus";
 
 export default function ProviderLayout() {
+  const { state, retry } = useLoadProfile("provider");
+
+  // The tabs only appear once the signed-in provider's real profile is loaded,
+  // so the screens never flash someone else's demo data.
+  if (state.status !== "ready") {
+    return (
+      <ProfileLoadStatus
+        status={state.status}
+        message={state.status === "error" ? state.message : undefined}
+        onRetry={retry}
+      />
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{

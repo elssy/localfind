@@ -59,6 +59,14 @@ export default function Search() {
       )
     : [];
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(seeker)");
+    }
+  };
+
   const startBroadcast = (searchQuery: string) => {
     if (!searchQuery.trim()) return;
     setBroadcastText("Sending your request to nearby providers…");
@@ -75,7 +83,7 @@ export default function Search() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.searchRow}>
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={handleBack} accessibilityRole="button" accessibilityLabel="Back">
           <Ionicons name="arrow-back" size={24} color={COLORS.darkText} />
         </Pressable>
         <TextInput
@@ -92,6 +100,7 @@ export default function Search() {
 
       {query.trim().length === 0 ? (
         <FlatList
+          key="categories"
           data={CATEGORIES}
           keyExtractor={(item) => item.name}
           numColumns={2}
@@ -106,6 +115,7 @@ export default function Search() {
         />
       ) : (
         <FlatList
+          key="results"
           data={filtered}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}

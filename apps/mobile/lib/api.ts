@@ -3,6 +3,18 @@ import * as SecureStore from "expo-secure-store";
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const TOKEN_KEY = "session_token";
 
+// Carries the HTTP status so callers can tell "not signed in" (401) apart from
+// a network problem or a server error.
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiRequest(path: string, options: RequestInit = {}) {
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   const res = await fetch(`${API_URL}${path}`, {
@@ -14,7 +26,7 @@ export async function apiRequest(path: string, options: RequestInit = {}) {
     },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Request failed");
+  if (!res.ok) throw new ApiError(data.error ?? "Request failed", res.status);
   return data;
 }
 

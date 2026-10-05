@@ -1,20 +1,13 @@
-import { z } from "zod";
 import type { Role } from "@prisma/client";
 import { prisma } from "./db";
+import type { ProviderProfileInput, SeekerProfileInput } from "./profileSchemas";
 
-export const providerProfileSchema = z.object({
-  businessName: z.string().trim().min(2).max(100),
-  category: z.string().trim().min(2).max(50),
-  bio: z.string().trim().max(1000).optional(),
-  city: z.string().trim().max(100).optional(),
-});
-
-export const seekerProfileSchema = z.object({
-  city: z.string().trim().max(100).optional(),
-});
-
-export type ProviderProfileInput = z.infer<typeof providerProfileSchema>;
-export type SeekerProfileInput = z.infer<typeof seekerProfileSchema>;
+export {
+  providerProfileSchema,
+  seekerProfileSchema,
+  CATEGORY_NAMES,
+} from "./profileSchemas";
+export type { ProviderProfileInput, SeekerProfileInput } from "./profileSchemas";
 
 export class ProfileAlreadyExistsError extends Error {
   constructor() {
@@ -23,8 +16,8 @@ export class ProfileAlreadyExistsError extends Error {
   }
 }
 
-// Admins have no marketplace profile, so they're always treated as "complete"
-// — this keeps the onboarding check simple for every caller, regardless of role.
+// Admins have no marketplace profile, so they are always treated as complete.
+// This keeps the onboarding check simple for every caller, whatever the role.
 export async function getProfileStatus(userId: string, role: Role) {
   if (role === "provider") {
     const profile = await prisma.provider.findUnique({ where: { userId } });
@@ -43,8 +36,8 @@ export async function createProviderProfile(userId: string, data: ProviderProfil
   return prisma.provider.create({ data: { userId, ...data } });
 }
 
-// The where clause is always built from userId, the caller's own identity —
-// never from anything in the request body. This makes it structurally
+// The where clause is always built from userId, the caller's own identity,
+// never from anything in the request body. That makes it structurally
 // impossible for this function to update someone else's profile.
 export async function updateProviderProfile(
   userId: string,

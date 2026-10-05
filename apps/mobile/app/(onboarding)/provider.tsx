@@ -1,9 +1,19 @@
 import React, { useState } from "react";
-import { Text, TextInput, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator } from "react-native";
+import {
+  Text,
+  TextInput,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { router } from "expo-router";
-import { COLORS } from "@localfind/shared";
+import { COLORS, CATEGORIES } from "@localfind/shared";
 import Button from "../../components/Button";
+import SelectField from "../../components/SelectField";
 import { apiRequest } from "../../lib/api";
+
+const CATEGORY_NAMES = CATEGORIES.map((c) => c.name);
 
 export default function ProviderOnboarding() {
   const [businessName, setBusinessName] = useState("");
@@ -16,8 +26,12 @@ export default function ProviderOnboarding() {
   const handleSubmit = async () => {
     setError(null);
 
-    if (!businessName.trim() || !category.trim()) {
-      setError("Business name and category are required");
+    if (!businessName.trim()) {
+      setError("Enter your business name");
+      return;
+    }
+    if (!category) {
+      setError("Choose a category");
       return;
     }
 
@@ -27,7 +41,7 @@ export default function ProviderOnboarding() {
         method: "POST",
         body: JSON.stringify({
           businessName: businessName.trim(),
-          category: category.trim(),
+          category,
           bio: bio.trim() || undefined,
           city: city.trim() || undefined,
         }),
@@ -42,7 +56,7 @@ export default function ProviderOnboarding() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Set up your business profile</Text>
         <Text style={styles.subtitle}>
           Seekers will see this when they find you in a search.
@@ -59,13 +73,12 @@ export default function ProviderOnboarding() {
           onChangeText={setBusinessName}
         />
 
-        <Text style={styles.label}>Category</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Plumbing"
-          placeholderTextColor={COLORS.mutedText}
+        <SelectField
+          label="Category"
           value={category}
-          onChangeText={setCategory}
+          options={CATEGORY_NAMES}
+          onChange={setCategory}
+          placeholder="Choose a category"
         />
 
         <Text style={styles.label}>City</Text>
