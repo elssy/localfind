@@ -23,13 +23,24 @@ export default function LoginPage() {
       body: JSON.stringify({ email, password }),
     });
 
-    setLoading(false);
     if (!res.ok) {
+      setLoading(false);
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Login failed");
       return;
     }
 
+    // Seekers and providers use the mobile app. If one signs in here, end that
+    // session straight away so the admin area is never left open to them.
+    const data = await res.json().catch(() => ({}));
+    if (data?.user?.role !== "admin") {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setLoading(false);
+      setError("This area is for administrators only. Please use the Local Find app.");
+      return;
+    }
+
+    setLoading(false);
     router.push("/dashboard");
     router.refresh();
   };
