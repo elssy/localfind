@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,58 +6,69 @@ import {
   StyleSheet,
   Pressable,
   FlatList,
-  SafeAreaView,
-  Animated,
-  Modal,
+  ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS, CATEGORIES, formatKm } from "@localfind/shared";
-import type { Provider } from "@localfind/shared";
-import { useAppStore } from "../../store/useAppStore";
-import StarRating from "../../components/StarRating";
+import { COLORS, CATEGORIES, providerFromPublic } from "@localfind/shared";
+import type { Provider, PublicProviderRow } from "@localfind/shared";
+import { apiRequest } from "../../lib/api";
+import Avatar from "../../components/Avatar";
 import Button from "../../components/Button";
+import ProviderRating from "../../components/ProviderRating";
 
-const MOCK_DISTANCES: Record<string, number> = {
-  p1: 1.2,
-  p2: 3.4,
-  p3: 2.1,
-  p4: 4.6,
-  p5: 2.8,
-};
+const CATEGORY_NAMES: string[] = CATEGORIES.map((c) => c.name);
 
 export default function Search() {
-  const providers = useAppStore((s) => s.providers);
+  const params = useLocalSearchParams<{ category?: string }>();
   const inputRef = useRef<TextInput>(null);
+
   const [query, setQuery] = useState("");
-  const [broadcasting, setBroadcasting] = useState(false);
-  const [broadcastText, setBroadcastText] = useState("Sending your request to nearby providers…");
-  const pulse = useRef(new Animated.Value(1)).current;
+  const [debounced, setDebounced] = useState("");
+  const [category, setCategory] = useState(
+    params.category && CATEGORY_NAMES.includes(params.category) ? params.category : ""
+  );
+  const [results, setResults] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Wait for a short pause in typing before asking the server.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(query.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!debounced && !category) {
+      setResults([]);
+      setError(null);
+      return;
+    }
 
-  useEffect(() => {
-    if (!broadcasting) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.15, duration: 600, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [broadcasting, pulse]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-  const filtered: Provider[] = query.trim()
-    ? providers.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.category.toLowerCase().includes(query.toLowerCase()) ||
-          p.subcategory.toLowerCase().includes(query.toLowerCase())
-      )
-    : [];
+    const parts = ["pageSize=50"];
+    if (debounced) parts.push(`q=${encodeURIComponent(debounced)}`);
+    if (category) parts.push(`category=${encodeURIComponent(category)}`);
+
+    apiRequest(`/api/providers?${parts.join("&")}`)
+      .then((data) => {
+        if (!cancelled) setResults((data.items as PublicProviderRow[]).map(providerFromPublic));
+      })
+      .catch((e: any) => {
+        if (!cancelled) setError(e?.message ?? "Could not search. Try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debounced, category]);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -67,23 +78,20 @@ export default function Search() {
     }
   };
 
-  const startBroadcast = (searchQuery: string) => {
-    if (!searchQuery.trim()) return;
-    setBroadcastText("Sending your request to nearby providers…");
-    setBroadcasting(true);
-    setTimeout(() => {
-      setBroadcastText("3 providers notified. Bids coming in…");
-      setTimeout(() => {
-        setBroadcasting(false);
-        router.push({ pathname: "/(seeker)/bids", params: { query: searchQuery } });
-      }, 900);
-    }, 1500);
+  const showingCategories = query.trim().length === 0 && !category;
+
+  const openRequest = () => {
+    const typed = query.trim();
+    router.push({
+      pathname: "/(shared)/new-request",
+      params: { category, description: typed && typed !== category ? typed : "" },
+    });
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.searchRow}>
-        <Pressable onPress={handleBack} accessibilityRole="button" accessibilityLabel="Back">
+        <Pressable onPress={handleBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <Ionicons name="arrow-back" size={24} color={COLORS.darkText} />
         </Pressable>
         <TextInput
@@ -93,12 +101,11 @@ export default function Search() {
           placeholderTextColor={COLORS.mutedText}
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={() => startBroadcast(query)}
           returnKeyType="search"
         />
       </View>
 
-      {query.trim().length === 0 ? (
+      {showingCategories ? (
         <FlatList
           key="categories"
           data={CATEGORIES}
@@ -106,48 +113,77 @@ export default function Search() {
           numColumns={2}
           contentContainerStyle={styles.grid}
           columnWrapperStyle={{ gap: 12 }}
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <Pressable style={styles.categoryTile} onPress={() => setQuery(item.name)}>
-              <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={28} color={COLORS.primaryBlue} />
+            <Pressable style={styles.categoryTile} onPress={() => setCategory(item.name)}>
+              <Ionicons
+                name={item.icon as keyof typeof Ionicons.glyphMap}
+                size={28}
+                color={COLORS.primaryBlue}
+              />
               <Text style={styles.categoryLabel}>{item.name}</Text>
             </Pressable>
           )}
         />
       ) : (
-        <FlatList
-          key="results"
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.resultCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.resultName}>{item.name}</Text>
-                <Text style={styles.resultCategory}>{item.category}</Text>
-                <View style={styles.resultMetaRow}>
-                  <StarRating rating={item.rating} size={12} />
-                  <Text style={styles.resultMeta}>{formatKm(MOCK_DISTANCES[item.id] ?? 1)}</Text>
-                </View>
-              </View>
-              <Button title="Request" onPress={() => startBroadcast(query)} style={styles.requestBtn} />
+        <>
+          {category ? (
+            <View style={styles.chipRow}>
+              <Pressable style={styles.chip} onPress={() => setCategory("")} accessibilityLabel="Clear category">
+                <Text style={styles.chipText}>{category}</Text>
+                <Ionicons name="close" size={14} color={COLORS.primaryBlue} />
+              </Pressable>
             </View>
-          )}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No matching providers. Try requesting anyway — we'll broadcast to nearby providers.</Text>
-          }
-        />
-      )}
+          ) : null}
 
-      <Modal visible={broadcasting} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulse }] }]}>
-              <Ionicons name="radio-outline" size={32} color={COLORS.primaryBlue} />
-            </Animated.View>
-            <Text style={styles.modalText}>{broadcastText}</Text>
+          {error && <Text style={styles.error}>{error}</Text>}
+
+          <FlatList
+            key="results"
+            data={results}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              loading ? <ActivityIndicator style={{ marginBottom: 12 }} color={COLORS.primaryBlue} /> : null
+            }
+            renderItem={({ item }) => (
+              <Pressable
+                style={styles.resultCard}
+                onPress={() => router.push(`/(shared)/provider-profile/${item.id}`)}
+              >
+                <Avatar name={item.name} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.resultName}>{item.name}</Text>
+                  <Text style={styles.resultCategory}>
+                    {item.category}
+                    {item.address ? ` · ${item.address}` : ""}
+                  </Text>
+                  <View style={styles.resultMetaRow}>
+                    <ProviderRating rating={item.rating} reviewCount={item.reviewCount} size={12} />
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.mutedText} />
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              loading ? null : (
+                <Text style={styles.emptyText}>
+                  No approved providers match yet. You can still send a request, and providers in
+                  this category will see it.
+                </Text>
+              )
+            }
+          />
+
+          <View style={styles.footer}>
+            <Button
+              title={category ? `Request a quote in ${category}` : "Request a quote"}
+              onPress={openRequest}
+            />
           </View>
-        </View>
-      </Modal>
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -157,7 +193,7 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 12,
     gap: 12,
@@ -173,11 +209,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.darkText,
   },
-  grid: {
-    paddingHorizontal: 16,
-    gap: 12,
-    paddingBottom: 24,
-  },
+  grid: { paddingHorizontal: 20, gap: 12, paddingBottom: 24 },
   categoryTile: {
     flex: 1,
     backgroundColor: COLORS.white,
@@ -196,11 +228,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 8,
   },
-  list: {
-    paddingHorizontal: 16,
-    gap: 12,
-    paddingBottom: 24,
+  chipRow: { paddingHorizontal: 20, paddingBottom: 8, flexDirection: "row" },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.lightBlueTint,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
+  chipText: { fontSize: 13, fontWeight: "600", color: COLORS.primaryBlue },
+  list: { paddingHorizontal: 20, paddingBottom: 12, flexGrow: 1 },
   resultCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -211,62 +250,16 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
   },
-  resultName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.darkText,
-  },
-  resultCategory: {
-    fontSize: 12,
-    color: COLORS.mutedText,
-    marginVertical: 2,
-  },
-  resultMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 4,
-  },
-  resultMeta: {
-    fontSize: 12,
-    color: COLORS.mutedText,
-  },
-  requestBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
+  resultName: { fontSize: 15, fontWeight: "600", color: COLORS.darkText },
+  resultCategory: { fontSize: 12, color: COLORS.mutedText, marginVertical: 2 },
+  resultMetaRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
   emptyText: {
     textAlign: "center",
     color: COLORS.mutedText,
     marginTop: 40,
     paddingHorizontal: 24,
+    lineHeight: 20,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    width: "80%",
-    gap: 16,
-  },
-  pulseCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.lightBlueTint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.darkText,
-    textAlign: "center",
-  },
+  error: { color: "#DC2626", paddingHorizontal: 20, marginBottom: 8, lineHeight: 20 },
+  footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
 });

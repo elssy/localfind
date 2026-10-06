@@ -15,11 +15,10 @@ import {
   CATEGORY_PIN_COLORS,
   NAIROBI_CENTER,
   MOCK_USER_LOCATION,
-  formatKm,
 } from "@localfind/shared";
 import { useAppStore } from "../../store/useAppStore";
 import Avatar from "../../components/Avatar";
-import StarRating from "../../components/StarRating";
+import ProviderRating from "../../components/ProviderRating";
 
 const NAIROBI_REGION: Region = {
   latitude: NAIROBI_CENTER.lat,
@@ -28,22 +27,22 @@ const NAIROBI_REGION: Region = {
   longitudeDelta: 0.08,
 };
 
-const MOCK_DISTANCES: Record<string, number> = {
-  p1: 1.2,
-  p2: 3.4,
-  p3: 2.1,
-  p4: 4.6,
-  p5: 2.8,
-};
-
 export default function SeekerHome() {
   const providers = useAppStore((s) => s.providers);
   const mapRef = useRef<MapView>(null);
   const [region, setRegion] = useState<Region>(NAIROBI_REGION);
 
-  const nearest = [...providers]
-    .sort((a, b) => (MOCK_DISTANCES[a.id] ?? 99) - (MOCK_DISTANCES[b.id] ?? 99))
-    .slice(0, 3);
+  // Best rated first, then newest. Distance is not shown because a provider's
+  // map location and the seeker's real location are not collected yet.
+  const featured = [...providers]
+    .sort(
+      (a, b) =>
+        b.rating - a.rating || new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+    )
+    .slice(0, 10);
+
+  // Providers who have not set a map location cannot be pinned, so they are left off the map.
+  const pinned = providers.filter((p) => p.located !== false);
 
   const handleUseMyLocation = () => {
     const newRegion: Region = {
@@ -65,7 +64,7 @@ export default function SeekerHome() {
         region={region}
         onRegionChangeComplete={setRegion}
       >
-        {providers.map((p) => (
+        {pinned.map((p) => (
           <Marker
             key={p.id}
             coordinate={{ latitude: p.lat, longitude: p.lng }}
@@ -91,9 +90,9 @@ export default function SeekerHome() {
 
       <View style={styles.sheet}>
         <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>Nearby providers</Text>
+        <Text style={styles.sheetTitle}>Providers on Local Find</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardRow}>
-          {nearest.map((p) => (
+          {featured.map((p) => (
             <Pressable
               key={p.id}
               style={styles.card}
@@ -109,12 +108,19 @@ export default function SeekerHome() {
                 </View>
               </View>
               <View style={styles.cardFooter}>
-                <StarRating rating={p.rating} size={12} />
-                <Text style={styles.cardMeta}>{formatKm(MOCK_DISTANCES[p.id] ?? 1)}</Text>
+                <ProviderRating rating={p.rating} reviewCount={p.reviewCount} size={12} />
+                <Text style={styles.cardMeta} numberOfLines={1}>
+                  {p.address}
+                </Text>
               </View>
-              <Text style={styles.cardMeta}>{p.responseTime}</Text>
             </Pressable>
           ))}
+          {featured.length === 0 && (
+            <Text style={styles.emptyProviders}>
+              No providers have joined yet. Search for a service and send a request, and providers
+              will reply as they join.
+            </Text>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -233,6 +239,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 4,
+  },
+  emptyProviders: {
+    fontSize: 13,
+    color: COLORS.mutedText,
+    lineHeight: 18,
+    width: 300,
   },
   cardMeta: {
     fontSize: 11,

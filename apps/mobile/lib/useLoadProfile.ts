@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { router } from "expo-router";
-import { providerFromProfile, seekerFromUser } from "@localfind/shared";
+import {
+  providerFromProfile,
+  providerFromPublic,
+  seekerFromUser,
+  transactionFromOrder,
+} from "@localfind/shared";
+import type { OrderRow, PublicProviderRow } from "@localfind/shared";
 import { apiRequest, clearToken } from "./api";
 import { useAppStore } from "../store/useAppStore";
 
@@ -11,9 +17,9 @@ type LoadState =
   | { status: "ready" }
   | { status: "error"; message: string };
 
-// Loads the signed-in user's real profile from the server and puts it where the
-// screens read it, so nobody sees another person's demo data. The screens only
-// render once this reports "ready".
+// Loads the signed-in user's real data from the server and puts it where the
+// screens read it, so nobody sees demo data or another person's details. The
+// screens only render once this reports "ready".
 export function useLoadProfile(expectedRole: Role) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -47,9 +53,32 @@ export function useLoadProfile(expectedRole: Role) {
         }
 
         if (expectedRole === "provider") {
-          useAppStore.setState({ currentProvider: providerFromProfile(data.profile) });
+          const orders = await apiRequest("/api/orders");
+          if (cancelled) return;
+          const me = providerFromProfile(data.profile);
+          useAppStore.setState({
+            currentProvider: me,
+            providers: [me],
+            transactions: (orders.items as OrderRow[]).map(transactionFromOrder),
+            // Everything below used to be demo data. It is now empty until real activity exists.
+            bids: [],
+            searchAlerts: [],
+            tokenPurchases: [],
+          });
         } else {
-          useAppStore.setState({ currentSeeker: seekerFromUser(data.user) });
+          const [directory, orders] = await Promise.all([
+            apiRequest("/api/providers?pageSize=100"),
+            apiRequest("/api/orders"),
+          ]);
+          if (cancelled) return;
+          useAppStore.setState({
+            currentSeeker: seekerFromUser(data.user),
+            providers: (directory.items as PublicProviderRow[]).map(providerFromPublic),
+            transactions: (orders.items as OrderRow[]).map(transactionFromOrder),
+            bids: [],
+            searchAlerts: [],
+            tokenPurchases: [],
+          });
         }
         setState({ status: "ready" });
       } catch (e: any) {

@@ -28,3 +28,41 @@ export const passwordResetLimiter = new Ratelimit({
   limiter: Ratelimit.slidingWindow(3, "1 h"),
   prefix: "ratelimit:reset",
 });
+
+// The limits below are counted per signed-in person, not per connection.
+
+// Browsing providers. Generous, but stops a script copying the whole directory.
+export const searchLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "1 m"),
+  prefix: "ratelimit:search",
+});
+
+// Posting new requests. A real person posts a handful a day.
+export const jobLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "1 h"),
+  prefix: "ratelimit:job",
+});
+
+// Sending bids.
+export const bidLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "1 h"),
+  prefix: "ratelimit:bid",
+});
+
+// If the limit service itself is down, reading is allowed (people can still browse)
+// but writing is refused (so abuse cannot slip through while the guard is off).
+export async function withinLimit(
+  limiter: Ratelimit,
+  key: string,
+  options: { failOpen: boolean }
+): Promise<boolean> {
+  try {
+    const { success } = await limiter.limit(key);
+    return success;
+  } catch {
+    return options.failOpen;
+  }
+}

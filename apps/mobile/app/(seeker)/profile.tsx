@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@localfind/shared";
 import { useAppStore } from "../../store/useAppStore";
+import { signOut } from "../../lib/api";
 import Avatar from "../../components/Avatar";
 
 const MENU_ITEMS: { label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -35,7 +36,13 @@ export default function SeekerProfile() {
           ))}
         </View>
 
-        <Pressable style={styles.menuItem} onPress={() => router.replace("/(auth)/splash")}>
+        <Pressable
+          style={styles.menuItem}
+          onPress={async () => {
+            await signOut();
+            router.replace("/(auth)/splash");
+          }}
+        >
           <Ionicons name="log-out-outline" size={20} color={COLORS.dangerRed} />
           <Text style={[styles.menuLabel, { color: COLORS.dangerRed }]}>Sign out</Text>
         </Pressable>

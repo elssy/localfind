@@ -1,298 +1,175 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Pressable,
-} from "react-native";
+import { View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Keyboard } from "react-native";
 import { router } from "expo-router";
-import MapView, { Marker } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS, formatKES } from "@localfind/shared";
-import type { Service } from "@localfind/shared";
+import { COLORS, CATEGORIES, providerFromProfile } from "@localfind/shared";
+import type { ProviderProfileRow } from "@localfind/shared";
 import { useAppStore } from "../../store/useAppStore";
 import Button from "../../components/Button";
-import { clearToken } from "../../lib/api";
+import FormScreen from "../../components/FormScreen";
+import SelectField from "../../components/SelectField";
+import { apiRequest, signOut } from "../../lib/api";
 
-// Add inside the component, alongside your other handlers:
-const handleLogout = async () => {
-  await clearToken();
-  router.replace("/(auth)/login");
-};
+const CATEGORY_NAMES = CATEGORIES.map((c) => c.name);
 
 export default function ProviderProfile() {
   const provider = useAppStore((s) => s.currentProvider);
-  const updateCurrentProvider = useAppStore((s) => s.updateCurrentProvider);
 
   const [name, setName] = useState(provider.name);
-  const [bio, setBio] = useState(provider.bio);
   const [category, setCategory] = useState(provider.category);
-  const [subcategory, setSubcategory] = useState(provider.subcategory);
-  const [services, setServices] = useState<Service[]>(provider.services);
-  const [photos, setPhotos] = useState<string[]>(provider.photos);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [city, setCity] = useState(provider.address);
+  const [bio, setBio] = useState(provider.bio);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    updateCurrentProvider({ name, bio, category, subcategory, services });
-    setSavedMessage("Profile saved");
-    setTimeout(() => setSavedMessage(null), 2000);
+  const handleSave = async () => {
+    Keyboard.dismiss();
+    setError(null);
+    setSaved(false);
+
+    if (name.trim().length < 2) {
+      setError("Enter your business name");
+      return;
+    }
+    if (!category) {
+      setError("Choose a category");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const data = await apiRequest("/api/profile/provider", {
+        method: "PATCH",
+        body: JSON.stringify({
+          businessName: name.trim(),
+          category,
+          city: city.trim(),
+          bio: bio.trim(),
+        }),
+      });
+      // Show what was really saved on the server.
+      const updated = providerFromProfile(data.profile as ProviderProfileRow);
+      useAppStore.setState({ currentProvider: updated, providers: [updated] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e: any) {
+      setError(e.message || "Could not save your profile. Try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const addService = () => {
-    setServices((prev) => [...prev, { name: "New service", price: 0 }]);
+  const handleLogout = async () => {
+    await signOut();
+    router.replace("/(auth)/login");
   };
-
-  const removeService = (index: number) => {
-    setServices((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateService = (index: number, patch: Partial<Service>) => {
-    setServices((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
-  };
-
-  const addPhoto = () => {
-    setPhotos((prev) => [...prev, `placeholder-${prev.length + 1}`]);
-  };
-
-
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>Business Profile</Text>
+    <FormScreen>
+      <Text style={styles.header}>Business Profile</Text>
 
-        <View
+      <View
+        style={[styles.banner, { backgroundColor: provider.verified ? "#E5F6EF" : "#FBF3E7" }]}
+      >
+        <Ionicons
+          name={provider.verified ? "checkmark-circle" : "time-outline"}
+          size={18}
+          color={provider.verified ? COLORS.successGreen : COLORS.warningAmber}
+        />
+        <Text
           style={[
-            styles.verificationBanner,
-            { backgroundColor: provider.verified ? "#E5F6EF" : "#FBF3E7" },
+            styles.bannerText,
+            { color: provider.verified ? COLORS.successGreen : COLORS.warningAmber },
           ]}
         >
-          <Ionicons
-            name={provider.verified ? "checkmark-circle" : "time-outline"}
-            size={18}
-            color={provider.verified ? COLORS.successGreen : COLORS.warningAmber}
-          />
-          <Text
-            style={[
-              styles.verificationText,
-              { color: provider.verified ? COLORS.successGreen : COLORS.warningAmber },
-            ]}
-          >
-            {provider.verified ? "Verified business" : "Verification pending"}
-          </Text>
-        </View>
+          {provider.verified
+            ? "Verified business. Seekers can find you in search."
+            : "Verification pending. You will appear in search once an admin approves your business."}
+        </Text>
+      </View>
 
-        {savedMessage && <Text style={styles.savedToast}>{savedMessage}</Text>}
+      <Text style={styles.label}>Business name</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+        placeholder="e.g. Kariuki Auto Garage"
+        placeholderTextColor={COLORS.mutedText}
+      />
 
-        <Text style={styles.label}>Business name</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName} />
+      <SelectField
+        label="Category"
+        value={category}
+        options={CATEGORY_NAMES}
+        onChange={setCategory}
+        placeholder="Choose a category"
+      />
 
-        <Text style={styles.label}>Bio</Text>
-        <TextInput style={[styles.input, styles.textarea]} value={bio} onChangeText={setBio} multiline />
+      <Text style={styles.label}>City</Text>
+      <TextInput
+        style={styles.input}
+        value={city}
+        onChangeText={setCity}
+        placeholder="e.g. Nairobi"
+        placeholderTextColor={COLORS.mutedText}
+      />
 
-        <Text style={styles.label}>Category</Text>
-        <TextInput style={styles.input} value={category} onChangeText={setCategory} />
+      <Text style={styles.label}>About your business</Text>
+      <TextInput
+        style={[styles.input, styles.multiline]}
+        value={bio}
+        onChangeText={setBio}
+        placeholder="Tell seekers what you do and why they should pick you"
+        placeholderTextColor={COLORS.mutedText}
+        multiline
+        maxLength={1000}
+      />
 
-        <Text style={styles.label}>Subcategory</Text>
-        <TextInput style={styles.input} value={subcategory} onChangeText={setSubcategory} />
+      <Text style={styles.soon}>
+        Services and prices, photos and your map location are coming in a future update.
+      </Text>
 
-        <Text style={styles.sectionTitle}>Services</Text>
-        {services.map((service, index) => (
-          <View key={`${service.name}-${index}`} style={styles.serviceRow}>
-            <TextInput
-              style={[styles.input, styles.serviceNameInput]}
-              value={service.name}
-              onChangeText={(text) => updateService(index, { name: text })}
-            />
-            <TextInput
-              style={[styles.input, styles.servicePriceInput]}
-              value={String(service.price)}
-              keyboardType="numeric"
-              onChangeText={(text) => updateService(index, { price: Number(text) || 0 })}
-            />
-            <Pressable onPress={() => removeService(index)} style={styles.removeBtn}>
-              <Ionicons name="trash-outline" size={18} color={COLORS.dangerRed} />
-            </Pressable>
-          </View>
-        ))}
-        <Pressable onPress={addService} style={styles.addServiceBtn}>
-          <Ionicons name="add" size={16} color={COLORS.primaryBlue} />
-          <Text style={styles.addServiceText}>Add service</Text>
-        </Pressable>
+      {error && <Text style={styles.error}>{error}</Text>}
+      {saved && <Text style={styles.savedText}>Profile saved</Text>}
 
-        <Text style={styles.sectionTitle}>Location</Text>
-        <View style={styles.mapWrap}>
-          <MapView
-            style={styles.map}
-            initialRegion={{
-              latitude: provider.lat,
-              longitude: provider.lng,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-            scrollEnabled={false}
-            zoomEnabled={false}
-          >
-            <Marker coordinate={{ latitude: provider.lat, longitude: provider.lng }} />
-          </MapView>
-        </View>
-        <Button title="Update location" variant="ghost" onPress={() => {}} style={{ marginTop: 10 }} />
+      {saving ? (
+        <ActivityIndicator style={{ marginTop: 24 }} color={COLORS.primaryBlue} />
+      ) : (
+        <Button title="Save" onPress={handleSave} style={{ marginTop: 24 }} />
+      )}
 
-        <Text style={styles.sectionTitle}>Photos</Text>
-        <View style={styles.photoGrid}>
-          {photos.map((photo, index) => (
-            <View key={`${photo}-${index}`} style={styles.photoTile}>
-              <Ionicons name="image-outline" size={24} color={COLORS.mutedText} />
-            </View>
-          ))}
-          <Pressable style={styles.photoTile} onPress={addPhoto}>
-            <Ionicons name="add" size={24} color={COLORS.primaryBlue} />
-          </Pressable>
-        </View>
+      <Pressable
+        onPress={() => router.push(`/(shared)/provider-profile/${provider.id}`)}
+        style={{ marginTop: 20 }}
+        hitSlop={8}
+      >
+        <Text style={styles.previewLink}>Preview my public profile</Text>
+      </Pressable>
 
-        <Text style={styles.servicesPreviewLabel}>Services & prices preview</Text>
-        {services.map((service, index) => (
-          <Text key={`preview-${index}`} style={styles.servicePreviewText}>
-            {service.name} — {formatKES(service.price)}
-          </Text>
-        ))}
-
-        <Button title="Save" onPress={handleSave} style={{ marginTop: 20 }} />
-
-        <Pressable onPress={() => router.push(`/(shared)/provider-profile/${provider.id}`)} style={{ marginTop: 16 }}>
-          <Text style={styles.previewLink}>Preview my public profile</Text>
-        </Pressable>
-        <Pressable onPress={handleLogout} style={{ alignSelf: "flex-end", marginBottom: 12 }}>
-          <Text style={{ color: COLORS.danger ?? "#DC2626", fontSize: 13, fontWeight: "600" }}>
-            Log out
-          </Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      <Button title="Log out" variant="outline" onPress={handleLogout} style={{ marginTop: 28 }} />
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 40 },
-  header: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: COLORS.darkText,
-    marginBottom: 16,
-  },
-  verificationBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-  },
-  verificationText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  savedToast: {
-    color: COLORS.successGreen,
-    fontWeight: "600",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.midText,
-    marginBottom: 6,
-    marginTop: 12,
-  },
+  header: { fontSize: 22, fontWeight: "600", color: COLORS.darkText, marginBottom: 16 },
+  banner: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, padding: 12, marginBottom: 8 },
+  bannerText: { flex: 1, fontSize: 13, fontWeight: "600", lineHeight: 18 },
+  label: { fontSize: 13, fontWeight: "600", color: COLORS.midText, marginBottom: 6, marginTop: 14 },
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.white,
     borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
     color: COLORS.darkText,
   },
-  textarea: {
-    minHeight: 70,
-    textAlignVertical: "top",
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.darkText,
-    marginTop: 22,
-    marginBottom: 10,
-  },
-  serviceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
-  },
-  serviceNameInput: {
-    flex: 2,
-  },
-  servicePriceInput: {
-    flex: 1,
-  },
-  removeBtn: {
-    padding: 6,
-  },
-  addServiceBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  addServiceText: {
-    color: COLORS.primaryBlue,
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  mapWrap: {
-    height: 140,
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  map: {
-    flex: 1,
-  },
-  photoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  photoTile: {
-    width: 70,
-    height: 70,
-    borderRadius: 10,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  servicesPreviewLabel: {
-    fontSize: 12,
-    color: COLORS.mutedText,
-    marginTop: 20,
-  },
-  servicePreviewText: {
-    fontSize: 13,
-    color: COLORS.darkText,
-    marginTop: 4,
-  },
-  previewLink: {
-    textAlign: "center",
-    color: COLORS.primaryBlue,
-    fontWeight: "600",
-  },
+  multiline: { minHeight: 100, textAlignVertical: "top" },
+  soon: { fontSize: 13, color: COLORS.mutedText, marginTop: 16, lineHeight: 18 },
+  error: { fontSize: 14, color: "#DC2626", marginTop: 16, lineHeight: 20 },
+  savedText: { fontSize: 14, color: COLORS.successGreen, fontWeight: "600", marginTop: 16 },
+  previewLink: { textAlign: "center", color: COLORS.primaryBlue, fontSize: 14, fontWeight: "600" },
 });

@@ -1,18 +1,20 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, FlatList, Pressable } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { COLORS, formatKES } from "@localfind/shared";
 import type { Transaction, TransactionStatus } from "@localfind/shared";
 import { useAppStore } from "../../store/useAppStore";
+import { refreshOrders } from "../../lib/refreshOrders";
 import StatusChip from "../../components/StatusChip";
 import Button from "../../components/Button";
 
 type Tab = "Active" | "Completed" | "Disputed";
 
-const TAB_STATUS: Record<Tab, TransactionStatus> = {
-  Active: "in_escrow",
-  Completed: "released",
-  Disputed: "disputed",
+// An order that has been accepted but not yet paid counts as active.
+const TAB_STATUSES: Record<Tab, TransactionStatus[]> = {
+  Active: ["pending", "in_escrow"],
+  Completed: ["released", "refunded"],
+  Disputed: ["disputed"],
 };
 
 export default function Orders() {
@@ -21,12 +23,19 @@ export default function Orders() {
   const currentSeeker = useAppStore((s) => s.currentSeeker);
   const [tab, setTab] = useState<Tab>("Active");
 
+  // Pick up new orders (for example a bid just accepted) every time this tab opens.
+  useFocusEffect(
+    useCallback(() => {
+      refreshOrders().catch(() => {});
+    }, [])
+  );
+
   const mine = useMemo(
     () => transactions.filter((t) => t.seekerId === currentSeeker.id),
     [transactions, currentSeeker.id]
   );
 
-  const filtered = mine.filter((t) => t.status === TAB_STATUS[tab]);
+  const filtered = mine.filter((t) => TAB_STATUSES[tab].includes(t.status));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -48,7 +57,7 @@ export default function Orders() {
           return (
             <OrderCard
               transaction={item}
-              providerName={provider?.name ?? "Provider"}
+              providerName={item.counterpartyName ?? provider?.name ?? "Provider"}
               onView={() => router.push(`/(shared)/escrow/${item.id}`)}
             />
           );
@@ -75,6 +84,11 @@ function OrderCard({
         <StatusChip status={transaction.status} />
       </View>
       <Text style={styles.service}>{transaction.service}</Text>
+      {transaction.status === "pending" && (
+        <Text style={styles.pendingNote}>
+          Awaiting payment. Online payment is not connected yet, so you have not been charged.
+        </Text>
+      )}
       <View style={styles.cardBottom}>
         <Text style={styles.amount}>{formatKES(transaction.amount)}</Text>
         <Text style={styles.date}>{new Date(transaction.createdAt).toLocaleDateString()}</Text>
@@ -147,6 +161,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.mutedText,
     marginBottom: 10,
+  },
+  pendingNote: {
+    fontSize: 12,
+    color: COLORS.warningAmber,
+    marginBottom: 10,
+    lineHeight: 17,
   },
   cardBottom: {
     flexDirection: "row",

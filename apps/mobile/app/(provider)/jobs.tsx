@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, FlatList, Pressable } from "react-native";
-import { router } from "expo-router";
-import { COLORS, formatKES, reviews, seekers } from "@localfind/shared";
+import { router, useFocusEffect } from "expo-router";
+import { COLORS, formatKES } from "@localfind/shared";
 import type { Transaction } from "@localfind/shared";
 import { useAppStore } from "../../store/useAppStore";
+import { refreshOrders } from "../../lib/refreshOrders";
 import StatusChip from "../../components/StatusChip";
-import StarRating from "../../components/StarRating";
 import Button from "../../components/Button";
 
 type Tab = "Active" | "Completed";
@@ -16,19 +16,23 @@ export default function Jobs() {
   const confirmDelivery = useAppStore((s) => s.confirmDelivery);
   const [tab, setTab] = useState<Tab>("Active");
 
+  // Pick up new jobs (for example a bid just accepted) every time this tab opens.
+  useFocusEffect(
+    useCallback(() => {
+      refreshOrders().catch(() => {});
+    }, [])
+  );
+
   const myJobs = useMemo(
     () => transactions.filter((t) => t.providerId === provider.id),
     [transactions, provider.id]
   );
 
   const filtered = myJobs.filter((t) =>
-    tab === "Active" ? t.status === "in_escrow" || t.status === "disputed" : t.status === "released"
+    tab === "Active"
+      ? t.status === "pending" || t.status === "in_escrow" || t.status === "disputed"
+      : t.status === "released"
   );
-
-  const seekerFirstName = (seekerId: string) => {
-    const seeker = seekers.find((s) => s.id === seekerId);
-    return seeker ? seeker.name.split(" ")[0] : "Seeker";
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -48,7 +52,7 @@ export default function Jobs() {
         renderItem={({ item }) => (
           <JobCard
             transaction={item}
-            seekerName={seekerFirstName(item.seekerId)}
+            seekerName={item.counterpartyName ?? "Seeker"}
             onMarkDelivered={() => confirmDelivery(item.id)}
           />
         )}
@@ -67,7 +71,6 @@ function JobCard({
   seekerName: string;
   onMarkDelivered: () => void;
 }) {
-  const review = reviews.find((r) => r.providerId === transaction.providerId);
   const isActive = transaction.status === "in_escrow" || transaction.status === "disputed";
 
   return (
@@ -89,9 +92,11 @@ function JobCard({
           />
           <Button title="Mark as Delivered" onPress={onMarkDelivered} style={{ flex: 1 }} />
         </View>
-      ) : (
-        review && <StarRating rating={review.rating} />
-      )}
+      ) : transaction.status === "pending" ? (
+        <Text style={styles.pendingNote}>
+          Waiting for payment. Online payment is not connected yet, so this job is not started.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -135,6 +140,12 @@ const styles = StyleSheet.create({
   list: {
     padding: 16,
     gap: 12,
+  },
+  pendingNote: {
+    fontSize: 12,
+    color: COLORS.warningAmber,
+    marginTop: 8,
+    lineHeight: 17,
   },
   card: {
     backgroundColor: COLORS.white,

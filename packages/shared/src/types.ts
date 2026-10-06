@@ -1,4 +1,6 @@
-export type TransactionStatus = "in_escrow" | "released" | "disputed";
+// "pending" is an accepted bid that has not been paid yet, which is every real
+// order until online payment is connected. "refunded" is money returned to the seeker.
+export type TransactionStatus = "pending" | "in_escrow" | "released" | "disputed" | "refunded";
 export type DisputeStatus = "open" | "under_review" | "resolved";
 export type ProviderStatus = "active" | "pending" | "suspended";
 
@@ -32,6 +34,8 @@ export interface Provider {
   services: Service[];
   status: ProviderStatus;
   joinedAt: string;
+  // False when the provider has not set a map location. Sample providers leave this out.
+  located?: boolean;
 }
 
 export interface Bid {
@@ -53,6 +57,8 @@ export interface Transaction {
   status: TransactionStatus;
   service: string;
   createdAt: string;
+  // Real orders carry the other person's name. Sample orders do not.
+  counterpartyName?: string;
 }
 
 export interface TokenBundle {

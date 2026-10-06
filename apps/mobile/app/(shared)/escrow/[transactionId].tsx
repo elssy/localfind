@@ -11,6 +11,20 @@ const STATUS_CONFIG: Record<
   TransactionStatus,
   { label: string; color: string; bg: string; copy: (amount: string) => string; icon: keyof typeof Ionicons.glyphMap }
 > = {
+  pending: {
+    label: "Awaiting payment",
+    color: COLORS.warningAmber,
+    bg: "#FBF3E7",
+    copy: (amount) => `${amount} is due. Online payment is not connected yet, so nothing has been charged.`,
+    icon: "time-outline",
+  },
+  refunded: {
+    label: "Refunded",
+    color: COLORS.mutedText,
+    bg: "#F1F1F1",
+    copy: (amount) => `${amount} has been returned to the seeker.`,
+    icon: "return-down-back-outline",
+  },
   in_escrow: {
     label: "In Escrow",
     color: COLORS.escrowPurple,
@@ -87,8 +101,8 @@ export default function Escrow() {
         <Text style={styles.sectionTitle}>Transaction breakdown</Text>
         <View style={styles.breakdownCard}>
           <Row label="Service" value={transaction.service} />
-          <Row label="Provider" value={provider?.name ?? "Provider"} />
-          <Row label="Amount paid" value={formatKES(transaction.amount)} />
+          <Row label="Provider" value={provider?.name ?? transaction.counterpartyName ?? "Provider"} />
+          <Row label={transaction.status === "pending" ? "Amount due" : "Amount paid"} value={formatKES(transaction.amount)} />
           <Row label={`Local Find fee (${ESCROW_FEE_RATE * 100}%)`} value={formatKES(fee)} />
           <Row label="Provider receives" value={formatKES(providerReceives)} bold />
         </View>
@@ -102,12 +116,14 @@ export default function Escrow() {
           </>
         )}
 
-        <Button
-          title="Chat with provider"
-          variant="ghost"
-          onPress={() => router.push(`/(shared)/chat/${transaction.id}`)}
-          style={{ marginTop: 20 }}
-        />
+        {transaction.status !== "pending" && (
+          <Button
+            title="Chat with provider"
+            variant="ghost"
+            onPress={() => router.push(`/(shared)/chat/${transaction.id}`)}
+            style={{ marginTop: 20 }}
+          />
+        )}
       </ScrollView>
 
       <Modal visible={showConfirmModal} transparent animationType="fade">

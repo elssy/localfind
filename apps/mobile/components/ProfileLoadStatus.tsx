@@ -3,7 +3,7 @@ import { View, Text, ActivityIndicator, Pressable, StyleSheet } from "react-nati
 import { router } from "expo-router";
 import { COLORS } from "@localfind/shared";
 import Button from "./Button";
-import { clearToken } from "../lib/api";
+import { signOut } from "../lib/api";
 
 interface Props {
   status: "loading" | "error";
@@ -13,7 +13,7 @@ interface Props {
 
 export default function ProfileLoadStatus({ status, message, onRetry }: Props) {
   const handleLogout = async () => {
-    await clearToken();
+    await signOut();
     router.replace("/(auth)/login");
   };
 

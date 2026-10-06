@@ -37,3 +37,15 @@ export async function saveToken(token: string) {
 export async function clearToken() {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
+
+// Signing out ends the session on the server as well as on this phone, so a copy
+// of the token is useless afterwards. If the phone is offline the server step is
+// skipped, but the token is still removed from the phone.
+export async function signOut() {
+  try {
+    await apiRequest("/api/auth/logout", { method: "POST" });
+  } catch {
+    // Offline or already signed out. Nothing more to do on the server.
+  }
+  await clearToken();
+}

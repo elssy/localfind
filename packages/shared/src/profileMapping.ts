@@ -51,6 +51,7 @@ export function providerFromProfile(row: ProviderProfileRow): Provider {
     services: [],
     status: STATUS_MAP[row.verificationStatus],
     joinedAt: row.createdAt,
+    located: row.latitude !== null && row.longitude !== null,
   };
 }
 
